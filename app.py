@@ -356,10 +356,16 @@ def start_game():
     participants = [p for p in room["players"].values() if not p.get("spectator", False)]
     if not participants or any(p["role"]["id"] == "villager" or not p.get("role_finalized") for p in participants):
         return error("Assign and finalize a built-in role for every player before starting.")
-    room["phase"] = "DAY_TALK"
-    room["log"].append("The game begins.")
+    room["phase"] = "NIGHT"
+    room["night_number"] += 1
+    room["effects"] = {"protected": set(), "bodyguard": {}, "blocked": set(), "fails_tomorrow": set()}
+    room["night_queue"] = [p["id"] for p in sorted(room["players"].values(), key=lambda p: p["role"].get("night_order", 999))
+                           if active(p) and p.get("has_ability", True) and wakes_at_night(p["role"])
+                           and (not p["role"].get("first_night") or room["night_number"] == 1)]
+    room["night_index"], room["night_proceed_ready"] = -1, None
+    room["log"].append("The game begins. Night falls.")
     broadcast(room)
-    socketio.emit("phase_announcement", {"title": "The Game Begins", "subtitle": "Day breaks over the town."}, room=room["code"])
+    socketio.emit("phase_announcement", {"title": "Night Falls", "subtitle": "The first night begins. Close your eyes."}, room=room["code"])
 
 
 @socketio.on("play_again")

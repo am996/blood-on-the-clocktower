@@ -72,6 +72,10 @@
     .phase-announcement { background:radial-gradient(ellipse,#392119 0,#120a09 67%); border:18px solid #21110d; box-shadow:inset 0 0 0 3px #976838,inset 0 0 90px #000; }.phase-announcement h1 { color:#e5c278; text-shadow:3px 4px #281109; }.wake-modal:before { color:#e8cb81; background:#3d2119; border-bottom:2px solid #9b6c38; }
     @media (min-width:1100px) { .story-layout { grid-template-columns:minmax(350px,410px) minmax(0,1fr); gap:1.5rem; } .side-column { gap:1.2rem; } .canvas { padding:2.5rem; } }
     @media (max-width:900px) { .token-grid { grid-template-columns:repeat(auto-fit,minmax(235px,1fr)); } .token { width:235px; } }
+    /* Keep private Storyteller chat usable above the night shroud. */
+    body.phase-night .game-shell { visibility:visible; }
+    body.phase-night .topbar,body.phase-night .player-hero,body.phase-night #playerSeats,body.phase-night .role-dock { display:none!important; }
+    body.phase-night .player-chat { position:fixed; z-index:25; right:1rem; bottom:1rem; left:1rem; max-width:620px; margin:auto; border-color:#70584a; background:#211714; }
   </style>
 </head>
 <body>
@@ -125,6 +129,7 @@
     document.addEventListener('click',e=>{if(!e.target.closest('.role-card')||!state?.is_storyteller||state.phase!=='DECK_BUILD')return;setTimeout(()=>socket.emit('preview_deck',{role_ids:deckSelection}),0)});document.addEventListener('contextmenu',e=>{if(!e.target.closest('.role-card')||!state?.is_storyteller||state.phase!=='DECK_BUILD')return;setTimeout(()=>socket.emit('preview_deck',{role_ids:deckSelection}),0)});
     socket.on('role_assigned',d=>say(`Your role has been assigned: ${d.role.name}.`));socket.on('room_state',d=>{if(d.phase==='DECK_BUILD'&&!d.is_storyteller&&d.deck.preview_role_ids){state.deck.role_ids=d.deck.preview_role_ids;renderPlayer()}if(d.is_storyteller&&d.phase==='ROLE_ASSIGN'){[...document.querySelectorAll('#adminSeats .token')].forEach((token,i)=>{const p=d.players[i];if(!p||p.spectator)return;const old=token.querySelector('[data-finalize-role]');if(old)old.remove();const button=document.createElement('button');button.dataset.finalizeRole='';button.className='btn '+(p.role_finalized?'btn-quiet':'btn-primary');button.textContent=p.role_finalized?'Role finalized':'Finalize role';button.disabled=p.role_finalized||!p.role;button.onclick=()=>socket.emit('finalize_role',{player_id:p.id});token.append(button)})}});socket.on('wake_up',()=>setTimeout(()=>{const action=$('#act');if(!action)return;const original=action.onclick;action.onclick=()=>{original?.();socket.emit('proceed_night')}},0));
     $('#saveDeck')?.remove();$('#seatCount').addEventListener('input',()=>socket.emit('set_deck_size',{seat_count:$('#seatCount').value}));document.addEventListener('click',e=>{if(e.target.closest('.role-card')&&state?.is_storyteller&&state.phase==='DECK_BUILD')socket.emit('set_deck_size',{seat_count:$('#seatCount').value})});
+    socket.on('room_state',d=>{if(!d.is_storyteller)return;const button=$('#phaseBtn'),labels={LOBBY:'Build deck',DECK_BUILD:'Lock deck',ROLE_ASSIGN:'Start first night',NIGHT:'Begin day',DAY_NOMINATION:'End voting · begin night',DAY_TALK:'Waiting for discussion'};button.textContent=labels[d.phase]||'Continue';button.disabled=d.phase==='DAY_TALK'});
     $('#seatCount').max=25;
   </script>
 </body></html>
