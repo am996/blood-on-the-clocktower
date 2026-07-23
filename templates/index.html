@@ -74,6 +74,13 @@
     .phase-announcement { background:radial-gradient(ellipse,#392119 0,#120a09 67%); border:18px solid #21110d; box-shadow:inset 0 0 0 3px #976838,inset 0 0 90px #000; }.phase-announcement h1 { color:#e5c278; text-shadow:3px 4px #281109; }.wake-modal:before { color:#e8cb81; background:#3d2119; border-bottom:2px solid #9b6c38; }
     @media (min-width:1100px) { .story-layout { grid-template-columns:minmax(350px,410px) minmax(0,1fr); gap:1.5rem; } .side-column { gap:1.2rem; } .canvas { padding:2.5rem; } }
     @media (max-width:900px) { .token-grid { grid-template-columns:repeat(auto-fit,minmax(235px,1fr)); } .token { width:235px; } }
+    /* Plain mode: no ornamental shadows or glow effects. */
+    *,*::before,*::after { box-shadow:none!important; text-shadow:none!important; }
+    .close-modal { width:34px; min-width:34px; height:34px; padding:0; border-radius:50%; font-size:1.5rem; line-height:1; }
+    /* Shared public table: players see the same seating coins, without role data. */
+    .town-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:1rem; justify-items:center; padding:1rem 0; }
+    .player-seat { width:145px; min-height:145px; padding:1rem; border:5px double #795737; border-radius:50%; background:#392419; flex-direction:column; justify-content:center; text-align:center; }
+    .player-seat .avatar { width:42px; height:42px; margin-bottom:.3rem; }.player-seat .seat-action { margin:.55rem 0 0; font-size:.66rem; }.player-seat.dead { opacity:.55; }.player-seat .seat-sub { margin:0; }
     /* Layout guardrails: keep controls readable without collisions on desktop or phones. */
     html,body { overflow-x:hidden; }
     .topbar,.top-actions,.token-actions,.dock-actions { flex-wrap:wrap; }
@@ -148,6 +155,7 @@
     socket.on('wake_up',()=>{document.body.classList.add('role-awake');setTimeout(()=>{const action=$('#act');if(!action)return;const previous=action.onclick;action.onclick=()=>{previous?.();setTimeout(()=>{if($('#night').classList.contains('hidden'))document.body.classList.remove('role-awake')},0)}},0)});socket.on('room_state',d=>{if(d.phase!=='NIGHT')document.body.classList.remove('role-awake')});
     function openCompendium(){if(!state)return;const deckCounts=Object.fromEntries((state.deck.role_ids||[]).map(id=>[id,((state.deck.role_ids||[]).filter(x=>x===id).length)]));const groups=['Townsfolk','Outsider','Minion','Demon'];$('#compendium').innerHTML=groups.map(team=>`<section class="compendium-group"><h3>${team}</h3><div class="compendium-grid">${state.role_catalog.filter(r=>r.team===team).sort((a,b)=>a.night_order-b.night_order).map(r=>{const copies=deckCounts[r.id]||0;return `<article class="info-card ${copies?'in-deck':''}"><span class="role-icon">${roleGlyph[r.id]||icon[r.team]}</span><h4>${esc(r.name)}${copies?`<span class="deck-mark">Deck × ${copies}</span>`:''}</h4><p>${esc(r.ability)}</p><p class="muted">Night order: ${r.night_order||'Passive'}</p></article>`}).join('')}</div></section>`).join('');$('#infoModal').classList.remove('hidden')}
     $('#infoBtn').onclick=openCompendium;socket.on('room_state',d=>{if(!d.is_storyteller||d.phase!=='ROLE_ASSIGN')return;[...document.querySelectorAll('#adminSeats .token')].forEach((token,index)=>{const player=d.players[index],select=token.querySelector('select');if(!player||!select)return;const assignedElsewhere=d.players.filter(p=>p.id!==player.id).map(p=>p.role?.id);const available=d.deck.role_ids.filter(id=>(d.deck.role_ids.filter(x=>x===id).length)>(assignedElsewhere.filter(id2=>id2===id).length));select.innerHTML='<option value="">Assign deck role…</option>'+[...new Set(available)].map(id=>{const role=d.role_catalog.find(r=>r.id===id);return role?`<option value="${role.id}">${esc(role.name)} · ${esc(role.team)}</option>`:''}).join('')})});
+    document.querySelectorAll('.close-modal').forEach(button=>{button.textContent='×';button.title='Close';button.setAttribute('aria-label','Close')});
     $('#seatCount').max=25;
   </script>
 </body></html>
