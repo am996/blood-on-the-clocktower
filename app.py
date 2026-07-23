@@ -37,13 +37,14 @@ def new_room(room_code):
 def serialize_player(player, admin=False, viewer_id=None):
     result = {
         "id": player["id"], "name": player["name"], "alive": player["alive"],
-        "drunk": player["drunk"], "poisoned": player["poisoned"],
-        "has_ghost_vote": player["has_ghost_vote"],
         "spectator": player.get("spectator", False),
         "disconnected": player.get("disconnected", False),
         "role_finalized": player.get("role_finalized", False),
     }
     if admin or (player["id"] == viewer_id and not player.get("spectator", False)):
+        result["drunk"] = player["drunk"]
+        result["poisoned"] = player["poisoned"]
+        result["has_ghost_vote"] = player["has_ghost_vote"]
         # The Drunk sees their decoy Townsfolk token, never their true role.
         result["role"] = player.get("shown_role", player["role"])
     return result
@@ -191,6 +192,8 @@ def join_game(data):
     room = rooms[room_code]
     player = room["players"].get(device_id)
     if not player:
+        if room["phase"] != "LOBBY":
+            return error("This game has already begun setup; ask the Storyteller to start a new game.")
         player = {"id": device_id, "name": name, "alive": True, "drunk": False,
                   "poisoned": False, "has_ghost_vote": False, "has_ability": True,
                   "target_history": [], "spectator": False, "role_finalized": False, "role": dict(DEFAULT_ROLE)}
@@ -330,6 +333,8 @@ def send_chat(data):
 def open_deck_builder():
     room, _ = current_room("storyteller")
     if not room: return
+    if room["phase"] != "LOBBY":
+        return error("The deck can only be opened from the lobby.")
     room["phase"] = "DECK_BUILD"
     room["log"].append("The Storyteller opened deck building for the town to review.")
     broadcast(room)
@@ -340,9 +345,11 @@ def open_deck_builder():
 def lock_deck():
     room, _ = current_room("storyteller")
     if not room: return
+    if room["phase"] != "DECK_BUILD":
+        return error("Build the deck before locking it.")
     participant_count = sum(not p.get("spectator", False) for p in room["players"].values())
     preview = room["deck"].get("preview_role_ids", [])
-    if len(preview) != room["deck"]["seat_count"] or room["deck"]["seat_count"] != participant_count:
+    if not participant_count or len(preview) != room["deck"]["seat_count"] or room["deck"]["seat_count"] != participant_count:
         return error("Build exactly one card per active player before locking the deck.")
     room["deck"]["role_ids"] = list(preview)
     room["phase"] = "ROLE_ASSIGN"
@@ -412,6 +419,8 @@ def set_spectator(data):
     room, _ = current_room("storyteller")
     if not room:
         return
+    if room["phase"] not in ("LOBBY", "DECK_BUILD"):
+        return error("Player seats can only be changed before the deck is locked.")
     player = room["players"].get(data.get("player_id"))
     if not player: return error("Player not found.")
     player["spectator"] = not player.get("spectator", False)
@@ -503,6 +512,8 @@ def toggle_phase():
         return error("Use the lobby controls to set up the game first.")
     if room["phase"] == "DAY_TALK":
         return error("Wait until all living players are ready before opening voting.")
+    if room["phase"] == "NIGHT" and room["night_queue"] and room["night_index"] < len(room["night_queue"]):
+        return error("Finish the night wake-up order before beginning the day.")
     room["phase"] = "NIGHT" if room["phase"] != "NIGHT" else "DAY_TALK"
     room["nomination"], room["votes"], room["ready_for_vote"] = None, {}, set()
     if room["phase"] == "NIGHT":
@@ -564,6 +575,8 @@ def assign_role(data):
     room, _ = current_room("storyteller")
     if not room:
         return
+    if room["phase"] != "ROLE_ASSIGN":
+        return error("Roles can only be assigned during role assignment.")
     player = room["players"].get(data.get("player_id"))
     role_name = str(data.get("role_name", ""))
     role = BUILTIN_ROLES.get(role_name)
@@ -669,7 +682,7 @@ def nominate(data):
         return error("Only a living player can nominate.")
     nominator = room["players"].get(conn["device_id"])
     target = room["players"].get(data.get("target_id"))
-    if room["phase"] != "DAY_NOMINATION" or nominator.get("spectator") or not nominator["alive"] or not target:
+    if room["phase"] != "DAY_NOMINATION" or nominator.get("spectator") or not nominator["alive"] or not target or not target["alive"] or target.get("spectator"):
         return error("Nominations open only after the town has finished discussing.")
     room["nomination"], room["votes"] = {"by": nominator["id"], "target": target["id"]}, {}
     room["log"].append(f"{nominator['name']} nominated {target['name']}.")
