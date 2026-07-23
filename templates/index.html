@@ -147,6 +147,21 @@
       .wake-modal { width:calc(100% - 1rem); max-height:88dvh; overflow:auto; }
       body.phase-night .player-chat { right:.5rem; bottom:max(.5rem,env(safe-area-inset-bottom)); left:.5rem; max-height:50dvh; }
     }
+    /* Player chat: a dedicated side panel on desktop and a dismissible drawer on phones. */
+    .player-chat-close,.player-chat-open { display:none; }
+    @media (min-width:1000px) {
+      .player-view { max-width:min(780px,calc(100vw - 390px)); margin-left:max(.5rem,calc((100vw - 1130px)/2)); margin-right:350px; }
+      .player-chat { position:fixed; z-index:12; top:82px; right:1rem; bottom:1rem; width:330px; min-height:0; margin:0!important; }
+      .player-chat .chat-feed { max-height:none; min-height:0; }
+      body.phase-night .player-chat { top:auto; bottom:1rem; }
+    }
+    @media (max-width:600px) {
+      .player-chat-close { display:inline-flex; min-width:34px; min-height:34px; padding:.2rem .45rem; }
+      .player-chat.collapsed { display:none!important; }
+      .player-chat-open { position:fixed; z-index:30; right:.75rem; bottom:max(.75rem,env(safe-area-inset-bottom)); display:inline-flex; min-height:48px; }
+      body.phase-night .player-chat-open { z-index:26; }
+      body.role-awake .player-chat-open { display:none; }
+    }
   </style>
 </head>
 <body>
@@ -206,5 +221,18 @@
     $('#infoBtn').onclick=openCompendium;socket.on('room_state',d=>{if(!d.is_storyteller||d.phase!=='ROLE_ASSIGN')return;[...document.querySelectorAll('#adminSeats .token')].forEach((token,index)=>{const player=d.players[index],select=token.querySelector('select');if(!player||!select)return;const assignedElsewhere=d.players.filter(p=>p.id!==player.id).map(p=>p.role?.id);const available=d.deck.role_ids.filter(id=>(d.deck.role_ids.filter(x=>x===id).length)>(assignedElsewhere.filter(id2=>id2===id).length));select.innerHTML='<option value="">Assign deck role…</option>'+[...new Set(available)].map(id=>{const role=d.role_catalog.find(r=>r.id===id);return role?`<option value="${role.id}">${esc(role.name)} · ${esc(role.team)}</option>`:''}).join('')})});
     document.querySelectorAll('.close-modal').forEach(button=>{button.textContent='×';button.title='Close';button.setAttribute('aria-label','Close')});
     $('#seatCount').max=25;
+    const playerChatPanel=$('.player-chat');
+    if(playerChatPanel){
+      const closeChat=document.createElement('button');closeChat.type='button';closeChat.className='btn btn-quiet player-chat-close';closeChat.textContent='×';closeChat.title='Close chat';closeChat.setAttribute('aria-label','Close chat');
+      playerChatPanel.querySelector('.panel-heading').append(closeChat);
+      const openChat=document.createElement('button');openChat.type='button';openChat.className='btn btn-quiet player-chat-open';openChat.textContent='☏ Chat';openChat.setAttribute('aria-label','Open chat');document.body.append(openChat);
+      closeChat.onclick=()=>playerChatPanel.classList.add('collapsed');
+      openChat.onclick=()=>playerChatPanel.classList.remove('collapsed');
+    }
+    function showSleepingScreen(){const night=$('#night');night.innerHTML='<div class="sleep-mark"><span>☾</span><p>Eyes closed</p></div>';night.classList.remove('hidden');document.body.classList.remove('role-awake')}
+    socket.off('wake_up');
+    socket.on('wake_up',d=>{if(state?.is_storyteller)return;const night=$('#night'),count=d.target_count||0;document.body.classList.add('role-awake');night.classList.remove('hidden');const select=count?`<select id="target" ${count>1?'multiple size="6"':''}><option value="">Choose ${count>1?count+' targets':'a target'}…</option>${state.players.filter(p=>p.alive&&!p.spectator).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select>`:'<p class="muted">Read any information, then close your eyes when you are ready.</p>';night.innerHTML=`<section class="wake-modal"><div class="wake-icon">${roleGlyph[d.role.id]||icon[d.role.team]||'✦'}</div><p class="eyebrow">Your eyes open</p><h1 class="title-font">${esc(d.role.name)}</h1><p>${esc(d.role.ability)}</p><p>${esc(d.prompt)}</p>${select}<button id="act" class="btn btn-primary">${count?'Submit action & close eyes':'Close eyes'}</button></section>`;$('#act').onclick=()=>{const ids=count?[...$('#target').selectedOptions].map(option=>option.value).filter(Boolean):[];if(count&&ids.length!==count)return say(`Choose exactly ${count} target${count>1?'s':''}.`);if(count)socket.emit('night_action',{target_ids:ids});socket.emit('close_eyes');socket.emit('proceed_night');showSleepingScreen()}});
+    socket.on('player_closed_eyes',d=>say(`${d.player_name} closed their eyes.`));
+    socket.on('room_state',d=>{if(!d.is_storyteller&&d.phase==='NIGHT'&&!document.body.classList.contains('role-awake'))showSleepingScreen();if(d.phase!=='NIGHT')document.body.classList.remove('role-awake')});
   </script>
 </body></html>

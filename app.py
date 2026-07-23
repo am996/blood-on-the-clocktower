@@ -675,6 +675,25 @@ def proceed_night():
     broadcast(room)
 
 
+@socketio.on("close_eyes")
+def close_eyes():
+    """Acknowledge that the currently awake player has returned to sleep."""
+    room, conn = current_room()
+    if not room or conn["kind"] != "player" or room["phase"] != "NIGHT":
+        return
+    current_id = room["night_queue"][room["night_index"]] if 0 <= room["night_index"] < len(room["night_queue"]) else None
+    if conn["device_id"] != current_id:
+        return error("It is not your turn to close your eyes.")
+    player = room["players"].get(current_id)
+    if not player:
+        return
+    room["log"].append(f"{player['name']} closed their eyes.")
+    for sid, storyteller_conn in connections.items():
+        if storyteller_conn["room"] == room["code"] and storyteller_conn["kind"] == "storyteller":
+            socketio.emit("player_closed_eyes", {"player_name": player["name"]}, to=sid)
+    broadcast(room)
+
+
 @socketio.on("nominate")
 def nominate(data):
     room, conn = current_room()
