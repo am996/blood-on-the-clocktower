@@ -273,6 +273,23 @@ def preview_deck(data):
     broadcast(room)
 
 
+@socketio.on("set_deck_size")
+def set_deck_size(data):
+    room, _ = current_room("storyteller")
+    if not room or room["phase"] != "DECK_BUILD":
+        return
+    try:
+        seat_count = int(data.get("seat_count", 0))
+    except (ValueError, TypeError):
+        return error("Choose a valid card count.")
+    participants = sum(not p.get("spectator", False) for p in room["players"].values())
+    if not participants <= seat_count <= len(BUILTIN_ROLES):
+        return error("The deck needs at least one card per active player.")
+    room["deck"]["seat_count"] = seat_count
+    room["deck"]["preview_role_ids"] = room["deck"]["preview_role_ids"][:seat_count]
+    broadcast(room)
+
+
 @socketio.on("deal_roles")
 def deal_roles():
     room, _ = current_room("storyteller")
@@ -321,8 +338,10 @@ def lock_deck():
     room, _ = current_room("storyteller")
     if not room: return
     participant_count = sum(not p.get("spectator", False) for p in room["players"].values())
-    if not room["deck"]["role_ids"] or room["deck"]["seat_count"] != participant_count:
-        return error("Save a deck before moving to role assignment.")
+    preview = room["deck"].get("preview_role_ids", [])
+    if len(preview) != room["deck"]["seat_count"] or room["deck"]["seat_count"] != participant_count:
+        return error("Build exactly one card per active player before locking the deck.")
+    room["deck"]["role_ids"] = list(preview)
     room["phase"] = "ROLE_ASSIGN"
     room["log"].append("Deck locked. The Storyteller is assigning secret roles.")
     broadcast(room)
