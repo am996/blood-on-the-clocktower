@@ -111,6 +111,42 @@
     .player-seat:hover .avatar { transform:scale(1.12) rotate(-7deg); }
     .icon-btn:hover { transform:translateY(-2px) rotate(8deg); }
     @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; } }
+    /* Phone-first finishing pass: thumb-sized controls and no fixed-panel collisions. */
+    @media (max-width:600px) {
+      .game-shell { padding:.55rem; }
+      .topbar { align-items:flex-start; padding:.65rem; }
+      .room-label { min-width:0; gap:.5rem; }
+      .room-label strong { font-size:.8rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:130px; }
+      .top-actions { width:100%; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.45rem; }
+      .top-actions .btn { width:100%; min-height:46px; padding:.55rem .35rem; font-size:.72rem; }
+      .story-layout,.side-column { grid-template-columns:1fr; }
+      .panel,.canvas { padding:.8rem; }
+      .canvas { min-height:0; overflow:visible; }
+      .canvas:before { display:none; }
+      .token-grid { grid-template-columns:1fr; gap:1rem; }
+      .token { width:min(100%,280px); min-height:0; }
+      .coin-inner { width:210px; height:210px; }
+      .token .token-actions,.token select,.token .condition { width:210px; }
+      .deck-grid { max-height:none; }
+      .role-card { min-height:132px; padding:.8rem; }
+      .compendium-grid { grid-template-columns:1fr; }
+      .info-card { min-height:0; }
+      .town-list { grid-template-columns:repeat(2,minmax(0,1fr)); gap:.6rem; padding:.35rem 0; }
+      .player-seat { width:100%; min-height:126px; padding:.65rem .35rem; border-width:3px; }
+      .player-seat .avatar { width:36px; height:36px; }
+      .player-seat .seat-name { max-width:120px; overflow-wrap:anywhere; }
+      .player-view { padding-bottom:300px; }
+      .role-dock { right:.55rem; bottom:max(.55rem,env(safe-area-inset-bottom)); left:.55rem; max-height:280px; overflow:auto; padding:.8rem; }
+      .dock-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .dock-actions .btn { width:100%; min-height:48px; }
+      .chat-compose { grid-template-columns:minmax(0,1fr) auto; }
+      .chat-compose .btn { min-width:64px; min-height:44px; }
+      .chat-compose input,.chat-compose select,input,select,textarea { font-size:16px; }
+      .modal-backdrop { align-items:end; padding:.45rem; }
+      .modal-card { width:100%; max-height:88dvh; padding:.9rem; }
+      .wake-modal { width:calc(100% - 1rem); max-height:88dvh; overflow:auto; }
+      body.phase-night .player-chat { right:.5rem; bottom:max(.5rem,env(safe-area-inset-bottom)); left:.5rem; max-height:50dvh; }
+    }
   </style>
 </head>
 <body>
