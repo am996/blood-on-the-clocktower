@@ -391,6 +391,19 @@ def play_again():
     socketio.emit("phase_announcement", {"title": "A New Tale Begins", "subtitle": "The room has returned to the lobby."}, room=room["code"])
 
 
+@socketio.on("quit_game")
+def quit_game():
+    room, _ = current_room("storyteller")
+    if not room:
+        return
+    room_code = room["code"]
+    socketio.emit("game_ended", {"message": "The Storyteller ended this game."}, room=room_code)
+    for sid, conn in list(connections.items()):
+        if conn["room"] == room_code:
+            connections.pop(sid, None)
+    rooms.pop(room_code, None)
+
+
 @socketio.on("set_spectator")
 def set_spectator(data):
     room, _ = current_room("storyteller")
