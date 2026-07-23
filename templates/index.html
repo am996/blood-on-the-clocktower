@@ -99,6 +99,18 @@
     body.phase-night .topbar,body.phase-night .player-hero,body.phase-night #playerSeats,body.phase-night .role-dock { display:none!important; }
     body.phase-night .player-chat { position:fixed; z-index:25; right:1rem; bottom:1rem; left:1rem; max-width:620px; margin:auto; border-color:#70584a; background:#211714; }
     body.role-awake .player-chat { display:none!important; }
+    /* Small, tactile motion cues — borders and movement only, never glow or shadow. */
+    .btn,.role-card,.info-card,.player-seat,.room-gem,.brand-mark { transition:transform .18s ease,border-color .18s ease,background-color .18s ease; }
+    .btn:hover:not(:disabled) { transform:translateY(-2px); border-color:#d0a85d; }
+    .role-card:hover { transform:translateY(-4px) rotate(-.25deg); border-color:#d0a85d; }
+    .info-card:hover { transform:translateY(-3px); border-color:#b89148; }
+    .player-seat:hover { transform:translateY(-4px) rotate(1deg); border-color:#c69855; }
+    .room-gem:hover,.brand-mark:hover { transform:rotate(8deg) scale(1.04); }
+    .role-icon,.coin-mark,.avatar { transition:transform .22s ease; }
+    .role-card:hover .role-icon,.info-card:hover .role-icon { transform:rotate(-10deg) scale(1.16); }
+    .player-seat:hover .avatar { transform:scale(1.12) rotate(-7deg); }
+    .icon-btn:hover { transform:translateY(-2px) rotate(8deg); }
+    @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; } }
   </style>
 </head>
 <body>
@@ -115,7 +127,7 @@
   <script>
     const socket=io({{ socket_url|tojson }} || window.location.origin), $=s=>document.querySelector(s); let state=null, kind=null, deckSelection=[];
     const deviceId=localStorage.deviceId||(localStorage.deviceId=crypto.randomUUID()); const urlCode='{{ room_code }}'; let heartbeatTimer=null; if(urlCode) $('#code').value=urlCode;
-    const icon={Townsfolk:'✦',Outsider:'◈',Minion:'☽',Demon:'♛'}; const roleGlyph={investigator:'⌕',watchman:'♜',exorcist:'✜',innkeeper:'⚿',bodyguard:'⬡',monk:'☩',alchemist:'⚗',bounty_hunter:'⌬',gossip:'✧',mayor:'♛',oracle:'◉',gravedigger:'⚰',parson:'✞',drunk:'♨',mutant:'☣',baron:'♚',lunatic:'☾',sweetheart:'♡',poisoner:'☠',spy:'◒',glitch:'◇',imp:'♜',zombuul:'☠',scarlet_woman:'✹'};
+    const icon={Townsfolk:'✦',Outsider:'◈',Minion:'☽',Demon:'♛'}; const roleGlyph={painter:'🎨',investigator:'⌕',watchman:'♜',exorcist:'✜',innkeeper:'⚿',bodyguard:'⬡',monk:'☩',alchemist:'⚗',bounty_hunter:'⌬',gossip:'✧',mayor:'♛',oracle:'◉',gravedigger:'⚰',parson:'✞',drunk:'♨',mutant:'☣',baron:'♚',lunatic:'☾',sweetheart:'♡',poisoner:'☠',spy:'◒',glitch:'◇',imp:'♜',zombuul:'☠',scarlet_woman:'✹',villager:'♟'};
     function say(message){$('#toast').textContent=message;$('#toast').classList.remove('hidden');setTimeout(()=>$('#toast').classList.add('hidden'),3000)} function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
     $('#create').onclick=()=>socket.emit('create_room',{device_id:deviceId}); $('#join').onclick=()=>socket.emit('join_room',{room_code:$('#code').value,name:$('#name').value,device_id:deviceId});
     function startHeartbeat(){if(heartbeatTimer)clearInterval(heartbeatTimer);heartbeatTimer=setInterval(()=>{if(socket.connected&&localStorage.getItem('clocktowerRoom'))socket.emit('heartbeat')},8*60*1000)}
