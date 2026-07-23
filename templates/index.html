@@ -162,6 +162,9 @@
       body.phase-night .player-chat-open { z-index:26; }
       body.role-awake .player-chat-open { display:none; }
     }
+    /* The decorative fog cannot intercept taps on an awake player's controls. */
+    .night-veil:before,.night-veil:after { pointer-events:none; }
+    .wake-modal { position:relative; z-index:2; pointer-events:auto; }
   </style>
 </head>
 <body>
