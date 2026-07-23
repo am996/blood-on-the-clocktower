@@ -29,7 +29,7 @@ def new_room(room_code):
         "storytellers": set(), "night_queue": [], "night_index": -1,
         "nomination": None, "votes": {}, "log": ["Room created. Day begins."],
         "night_number": 0, "last_executed": None, "effects": {"protected": set(), "bodyguard": {}, "blocked": set(), "fails_tomorrow": set()},
-        "deck": {"seat_count": 0, "role_ids": []}, "chat": [], "painter_questions": [], "ready_for_vote": set(),
+        "deck": {"seat_count": 0, "role_ids": [], "preview_role_ids": []}, "chat": [], "painter_questions": [], "ready_for_vote": set(), "night_proceed_ready": None,
     }
 
 
@@ -40,6 +40,7 @@ def serialize_player(player, admin=False, viewer_id=None):
         "has_ghost_vote": player["has_ghost_vote"],
         "spectator": player.get("spectator", False),
         "disconnected": player.get("disconnected", False),
+        "role_finalized": player.get("role_finalized", False),
     }
     if admin or (player["id"] == viewer_id and not player.get("spectator", False)):
         # The Drunk sees their decoy Townsfolk token, never their true role.
@@ -71,6 +72,11 @@ def role_of(player):
 def active(player):
     # A hidden Zombuul remains active after its first apparent death.
     return not player.get("spectator", False) and (player["alive"] or player.get("zombuul_hidden_alive", False))
+
+
+def wakes_at_night(role):
+    """Passive roles (such as Painter) do not enter the automatic night queue."""
+    return role.get("night_order", 0) > 0 and (role.get("targets", 0) > 0 or role.get("info", False))
 
 
 def information(room, actor, truth, alternatives=None):
@@ -186,7 +192,7 @@ def join_game(data):
     if not player:
         player = {"id": device_id, "name": name, "alive": True, "drunk": False,
                   "poisoned": False, "has_ghost_vote": False, "has_ability": True,
-                  "target_history": [], "spectator": False, "role": dict(DEFAULT_ROLE)}
+                  "target_history": [], "spectator": False, "role_finalized": False, "role": dict(DEFAULT_ROLE)}
         room["players"][device_id] = player
         room["log"].append(f"{name} joined the game.")
     else:
@@ -250,8 +256,20 @@ def configure_deck(data):
     participant_count = sum(not p.get("spectator", False) for p in room["players"].values())
     if not participant_count <= seat_count <= len(BUILTIN_ROLES) or len(role_ids) != seat_count or any(role_id not in available for role_id in role_ids):
         return error("Select at least one card per joined player, using valid role cards.")
-    room["deck"] = {"seat_count": seat_count, "role_ids": role_ids}
+    room["deck"] = {"seat_count": seat_count, "role_ids": role_ids, "preview_role_ids": role_ids}
     room["log"].append(f"Deck configured with {seat_count} cards.")
+    broadcast(room)
+
+
+@socketio.on("preview_deck")
+def preview_deck(data):
+    room, _ = current_room("storyteller")
+    if not room or room["phase"] != "DECK_BUILD":
+        return
+    role_ids = list(data.get("role_ids", []))[:len(BUILTIN_ROLES)]
+    if any(role_id not in BUILTIN_ROLES for role_id in role_ids):
+        return error("Deck preview contains an invalid role.")
+    room["deck"]["preview_role_ids"] = role_ids
     broadcast(room)
 
 
@@ -317,8 +335,8 @@ def start_game():
     if not room: return
     if room["phase"] != "ROLE_ASSIGN": return error("Assign roles before starting the game.")
     participants = [p for p in room["players"].values() if not p.get("spectator", False)]
-    if not participants or any(p["role"]["id"] == "villager" for p in participants):
-        return error("Assign a built-in role to every player before starting.")
+    if not participants or any(p["role"]["id"] == "villager" or not p.get("role_finalized") for p in participants):
+        return error("Assign and finalize a built-in role for every player before starting.")
     room["phase"] = "DAY_TALK"
     room["log"].append("The game begins.")
     broadcast(room)
@@ -331,7 +349,7 @@ def play_again():
     if not room or room["phase"] in ("LOBBY", "DECK_BUILD", "ROLE_ASSIGN"):
         return error("Start a game before resetting it for another round.")
     room["phase"] = "LOBBY"
-    room["deck"] = {"seat_count": 0, "role_ids": []}
+    room["deck"] = {"seat_count": 0, "role_ids": [], "preview_role_ids": []}
     room["night_queue"], room["night_index"], room["night_number"] = [], -1, 0
     room["nomination"], room["votes"], room["ready_for_vote"] = None, {}, set()
     room["last_executed"] = None
@@ -339,7 +357,7 @@ def play_again():
     room["painter_questions"], room["chat"] = [], []
     for player in room["players"].values():
         player.update({"alive": True, "drunk": False, "poisoned": False, "has_ghost_vote": False,
-                       "has_ability": True, "target_history": [], "role": dict(DEFAULT_ROLE)})
+                       "has_ability": True, "target_history": [], "role_finalized": False, "role": dict(DEFAULT_ROLE)})
         for key in ("shown_role", "painter_question_used", "zombuul_hidden_alive", "zombuul_first_death_used", "poison_expires", "drunk_expires"):
             player.pop(key, None)
     room["log"] = ["A new game is ready. The town is gathering again."]
@@ -454,7 +472,7 @@ def toggle_phase():
             if p.pop("drunk_expires", False): p["drunk"] = False
         room["effects"] = {"protected": set(), "bodyguard": {}, "blocked": set(), "fails_tomorrow": set()}
         room["night_queue"] = [p["id"] for p in sorted(room["players"].values(), key=lambda p: p["role"].get("night_order", 999))
-                               if active(p) and p.get("has_ability", True) and p["role"]["id"] != "villager"
+                               if active(p) and p.get("has_ability", True) and wakes_at_night(p["role"])
                                and (not p["role"].get("first_night") or room["night_number"] == 1)]
         room["night_index"] = -1
         room["log"].append("Night falls. Build the wake-up order.")
@@ -515,11 +533,27 @@ def assign_role(data):
         already_assigned = sum(p["role"]["id"] == role_name for p in room["players"].values() if p["id"] != player["id"])
         if not allowed_copies or already_assigned >= allowed_copies:
             return error("That role is not available in the locked deck.")
-    player["role"] = dict(role); player.pop("shown_role", None)
+    player["role"] = dict(role); player["role_finalized"] = False; player.pop("shown_role", None)
     if role["id"] == "drunk":
         player["drunk"] = True
         player["shown_role"] = dict(random.choice([r for r in BUILTIN_ROLES.values() if r["team"] == "Townsfolk" and r["id"] != "parson"]))
     room["log"].append(f"Assigned {role['name']} to {player['name']}.")
+    for sid, conn in connections.items():
+        if conn["room"] == room["code"] and conn["kind"] == "player" and conn["device_id"] == player["id"]:
+            socketio.emit("role_assigned", {"role": player.get("shown_role", player["role"])}, to=sid)
+    broadcast(room)
+
+
+@socketio.on("finalize_role")
+def finalize_role(data):
+    room, _ = current_room("storyteller")
+    if not room or room["phase"] != "ROLE_ASSIGN":
+        return error("Roles can only be finalized during role assignment.")
+    player = room["players"].get(data.get("player_id"))
+    if not player or player.get("spectator") or player["role"]["id"] == "villager":
+        return error("Assign a role before finalizing this seat.")
+    player["role_finalized"] = True
+    room["log"].append(f"Finalized {player['name']}'s role.")
     broadcast(room)
 
 
@@ -528,7 +562,12 @@ def wake_next_role():
     room, _ = current_room("storyteller")
     if not room or room["phase"] != "NIGHT":
         return error("Wake roles only during Night.")
+    if 0 <= room["night_index"] < len(room["night_queue"]):
+        current_id = room["night_queue"][room["night_index"]]
+        if room.get("night_proceed_ready") != current_id:
+            return error("Wait for the current player to press Proceed before waking the next role.")
     room["night_index"] += 1
+    room["night_proceed_ready"] = None
     if room["night_index"] >= len(room["night_queue"]):
         room["night_index"] = len(room["night_queue"])
         room["log"].append("Night order complete.")
@@ -563,6 +602,22 @@ def wake_next_role():
         if conn["room"] == room["code"] and conn["kind"] == "player" and conn["device_id"] == player_id:
             shown = player.get("shown_role", role)
             socketio.emit("wake_up", {"role": shown, "target_count": role.get("targets", 0), "prompt": "Select a player to target, then submit your action."}, to=sid)
+    broadcast(room)
+
+
+@socketio.on("proceed_night")
+def proceed_night():
+    room, conn = current_room()
+    if not room or conn["kind"] != "player" or room["phase"] != "NIGHT":
+        return error("You cannot proceed right now.")
+    current_id = room["night_queue"][room["night_index"]] if 0 <= room["night_index"] < len(room["night_queue"]) else None
+    if conn["device_id"] != current_id:
+        return error("It is not your turn to proceed.")
+    actor = room["players"].get(current_id)
+    if actor["role"].get("targets", 0) and not any(item["night"] == room["night_number"] for item in actor["target_history"]):
+        return error("Submit your night action before proceeding.")
+    room["night_proceed_ready"] = current_id
+    room["log"].append(f"{actor['name']} is ready for the next night role.")
     broadcast(room)
 
 
