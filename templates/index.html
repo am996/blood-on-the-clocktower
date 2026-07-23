@@ -85,7 +85,7 @@
   <div id="infoModal" class="modal-backdrop hidden"><section class="modal-card"><div class="modal-header"><div><p class="eyebrow">Reference</p><h2 class="title-font">Role Compendium</h2></div><button class="btn btn-quiet close-modal">Close</button></div><div id="compendium"></div></section></div>
 
   <script>
-    const socket=io(), $=s=>document.querySelector(s); let state=null, kind=null, deckSelection=[];
+    const socket=io({{ socket_url|tojson }} || window.location.origin), $=s=>document.querySelector(s); let state=null, kind=null, deckSelection=[];
     const deviceId=localStorage.deviceId||(localStorage.deviceId=crypto.randomUUID()); const urlCode='{{ room_code }}', saved=JSON.parse(localStorage.getItem('clocktowerRoom')||'null'); if(urlCode) $('#code').value=urlCode;
     const icon={Townsfolk:'✦',Outsider:'◈',Minion:'☽',Demon:'♛'}; const roleGlyph={investigator:'⌕',watchman:'♜',exorcist:'✜',innkeeper:'⚿',bodyguard:'⬡',monk:'☩',alchemist:'⚗',bounty_hunter:'⌬',gossip:'✧',mayor:'♛',oracle:'◉',gravedigger:'⚰',parson:'✞',drunk:'♨',mutant:'☣',baron:'♚',lunatic:'☾',sweetheart:'♡',poisoner:'☠',spy:'◒',glitch:'◇',imp:'♜',zombuul:'☠',scarlet_woman:'✹'};
     function say(message){$('#toast').textContent=message;$('#toast').classList.remove('hidden');setTimeout(()=>$('#toast').classList.add('hidden'),3000)} function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}

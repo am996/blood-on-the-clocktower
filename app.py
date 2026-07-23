@@ -149,7 +149,13 @@ def current_room(required_kind=None):
 @app.route("/")
 @app.route("/room/<room_code>")
 def index(room_code=None):
-    return render_template("index.html", room_code=(room_code or "").upper())
+    return render_template(
+        "index.html",
+        room_code=(room_code or "").upper(),
+        # Empty by default: the browser then connects to the same Render URL
+        # that served this page. Set SOCKET_URL only for a separately hosted UI.
+        socket_url=os.environ.get("SOCKET_URL", ""),
+    )
 
 
 @socketio.on("create_room")
