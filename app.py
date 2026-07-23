@@ -222,6 +222,19 @@ def resume_room(data):
     broadcast_chat(room)
 
 
+@socketio.on("heartbeat")
+def heartbeat():
+    """Application-level activity during an active room keeps hosted services warm."""
+    room, conn = current_room()
+    if not room:
+        return
+    if conn["kind"] == "player":
+        player = room["players"].get(conn["device_id"])
+        if player:
+            player["disconnected"] = False
+    emit("heartbeat_ack", {"room_code": room["code"]})
+
+
 @socketio.on("configure_deck")
 def configure_deck(data):
     room, _ = current_room("storyteller")
