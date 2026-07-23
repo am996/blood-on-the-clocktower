@@ -15,6 +15,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 # Prototype-only storage. Replace this with Redis/Postgres for persistent, multi-process hosting.
 rooms = {}
 connections = {}  # sid -> {room, device_id, kind}
+DISCONNECT_GRACE_SECONDS = 20
 
 def code():
     while True:
@@ -198,6 +199,7 @@ def join_game(data):
     else:
         player["name"] = name
         player["disconnected"] = False
+        player.pop("disconnect_token", None)
     join_room(room_code)
     connections[request.sid] = {"room": room_code, "device_id": device_id, "kind": "player"}
     emit("joined", {"room_code": room_code, "kind": "player"})
@@ -219,6 +221,7 @@ def resume_room(data):
     elif device_id in room["players"]:
         kind = "player"
         room["players"][device_id]["disconnected"] = False
+        room["players"][device_id].pop("disconnect_token", None)
     else:
         return error("This device has not joined that room.")
     join_room(room_code)
@@ -789,9 +792,22 @@ def disconnected():
     room = rooms.get(conn["room"])
     player = room and room["players"].get(conn["device_id"])
     if player:
-        player["disconnected"] = True
-        room["log"].append(f"{player['name']} disconnected. The Storyteller can decide how to proceed.")
-        broadcast(room)
+        # Mobile networks often reconnect Socket.IO within seconds. Do not alarm
+        # the Storyteller until the browser has missed a full grace period.
+        token = str(uuid.uuid4())
+        player["disconnect_token"] = token
+        socketio.start_background_task(confirm_disconnect, conn["room"], player["id"], token)
+
+
+def confirm_disconnect(room_code, player_id, token):
+    socketio.sleep(DISCONNECT_GRACE_SECONDS)
+    room = rooms.get(room_code)
+    player = room and room["players"].get(player_id)
+    if not player or player.get("disconnect_token") != token:
+        return
+    player["disconnected"] = True
+    room["log"].append(f"{player['name']} has been offline for {DISCONNECT_GRACE_SECONDS} seconds.")
+    broadcast(room)
 
 
 if __name__ == "__main__":

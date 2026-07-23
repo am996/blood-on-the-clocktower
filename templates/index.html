@@ -74,6 +74,18 @@
     .phase-announcement { background:radial-gradient(ellipse,#392119 0,#120a09 67%); border:18px solid #21110d; box-shadow:inset 0 0 0 3px #976838,inset 0 0 90px #000; }.phase-announcement h1 { color:#e5c278; text-shadow:3px 4px #281109; }.wake-modal:before { color:#e8cb81; background:#3d2119; border-bottom:2px solid #9b6c38; }
     @media (min-width:1100px) { .story-layout { grid-template-columns:minmax(350px,410px) minmax(0,1fr); gap:1.5rem; } .side-column { gap:1.2rem; } .canvas { padding:2.5rem; } }
     @media (max-width:900px) { .token-grid { grid-template-columns:repeat(auto-fit,minmax(235px,1fr)); } .token { width:235px; } }
+    /* Layout guardrails: keep controls readable without collisions on desktop or phones. */
+    html,body { overflow-x:hidden; }
+    .topbar,.top-actions,.token-actions,.dock-actions { flex-wrap:wrap; }
+    .top-actions { justify-content:flex-end; }
+    .side-column,.canvas,.panel,.token,.role-dock { min-width:0; }
+    .canvas { overflow-x:auto; }
+    .token-actions .btn { flex:1 1 auto; }
+    .chat-panel { overflow:hidden; }
+    .chat-feed { overflow-y:auto; overflow-x:hidden; }
+    .modal-card { overscroll-behavior:contain; }
+    .token,.role-card,.info-card,.player-seat,.panel { transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease; }
+    @media (max-width:680px) { .topbar { align-items:flex-start; } .top-actions { width:100%; justify-content:flex-start; } .top-actions .btn { flex:1 1 42%; } .token-grid { grid-template-columns:1fr; } .token { width:min(100%,270px); } .role-dock { max-height:42vh; overflow:auto; } body.phase-night .player-chat { right:.5rem; bottom:.5rem; left:.5rem; max-height:46vh; } }
     /* Keep private Storyteller chat usable above the night shroud. */
     body.phase-night .game-shell { visibility:visible; }
     body.phase-night .topbar,body.phase-night .player-hero,body.phase-night #playerSeats,body.phase-night .role-dock { display:none!important; }
