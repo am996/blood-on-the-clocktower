@@ -76,6 +76,7 @@
     body.phase-night .game-shell { visibility:visible; }
     body.phase-night .topbar,body.phase-night .player-hero,body.phase-night #playerSeats,body.phase-night .role-dock { display:none!important; }
     body.phase-night .player-chat { position:fixed; z-index:25; right:1rem; bottom:1rem; left:1rem; max-width:620px; margin:auto; border-color:#70584a; background:#211714; }
+    body.role-awake .player-chat { display:none!important; }
   </style>
 </head>
 <body>
@@ -130,6 +131,7 @@
     socket.on('role_assigned',d=>say(`Your role has been assigned: ${d.role.name}.`));socket.on('room_state',d=>{if(d.phase==='DECK_BUILD'&&!d.is_storyteller&&d.deck.preview_role_ids){state.deck.role_ids=d.deck.preview_role_ids;renderPlayer()}if(d.is_storyteller&&d.phase==='ROLE_ASSIGN'){[...document.querySelectorAll('#adminSeats .token')].forEach((token,i)=>{const p=d.players[i];if(!p||p.spectator)return;const old=token.querySelector('[data-finalize-role]');if(old)old.remove();const button=document.createElement('button');button.dataset.finalizeRole='';button.className='btn '+(p.role_finalized?'btn-quiet':'btn-primary');button.textContent=p.role_finalized?'Role finalized':'Finalize role';button.disabled=p.role_finalized||!p.role;button.onclick=()=>socket.emit('finalize_role',{player_id:p.id});token.append(button)})}});socket.on('wake_up',()=>setTimeout(()=>{const action=$('#act');if(!action)return;const original=action.onclick;action.onclick=()=>{original?.();socket.emit('proceed_night')}},0));
     $('#saveDeck')?.remove();$('#seatCount').addEventListener('input',()=>socket.emit('set_deck_size',{seat_count:$('#seatCount').value}));document.addEventListener('click',e=>{if(e.target.closest('.role-card')&&state?.is_storyteller&&state.phase==='DECK_BUILD')socket.emit('set_deck_size',{seat_count:$('#seatCount').value})});
     socket.on('room_state',d=>{if(!d.is_storyteller)return;const button=$('#phaseBtn'),labels={LOBBY:'Build deck',DECK_BUILD:'Lock deck',ROLE_ASSIGN:'Start first night',NIGHT:'Begin day',DAY_NOMINATION:'End voting · begin night',DAY_TALK:'Waiting for discussion'};button.textContent=labels[d.phase]||'Continue';button.disabled=d.phase==='DAY_TALK'});
+    socket.on('wake_up',()=>{document.body.classList.add('role-awake');setTimeout(()=>{const action=$('#act');if(!action)return;const previous=action.onclick;action.onclick=()=>{previous?.();setTimeout(()=>{if($('#night').classList.contains('hidden'))document.body.classList.remove('role-awake')},0)}},0)});socket.on('room_state',d=>{if(d.phase!=='NIGHT')document.body.classList.remove('role-awake')});
     $('#seatCount').max=25;
   </script>
 </body></html>
